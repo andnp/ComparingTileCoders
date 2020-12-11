@@ -35,7 +35,7 @@ if __name__ == "__main__":
         print('python scripts/local.py [entry.py] [runs] [base/path/to/results] [paths/to/descriptions]...')
         exit(0)
 
-    pool = Pool()
+    pool = Pool(14)
 
     runs = sys.argv[2]
     args = Args.ArgsModel({
@@ -55,8 +55,7 @@ if __name__ == "__main__":
 
         data = []
 
-        raise NotImplementedError('Make sure to change the expected result file!!')
-        data_path = f'{res_path}/TODO-CHANGE-ME.csv'
+        data_path = f'{res_path}/step_return.csv'
         if os.path.exists(data_path):
             f = open(data_path, 'r')
             data = f.readlines()

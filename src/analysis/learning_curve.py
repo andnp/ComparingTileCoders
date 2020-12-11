@@ -16,15 +16,15 @@ def confidenceInterval(mean, stderr):
 
 
 def plotBest(best, ax, window=1, smoothing=0, color=None, label=None, alpha=0.4, alphaMain=1, labelParams=None, dashed=False):
-    label = label if label is not None else best.exp.agent
+    label = label if label is not None else ''
 
     params = ''
     if labelParams is not None:
         l = [f'{key}-{best.params[key]}' for key in labelParams]
         params = ' ' + ' '.join(l)
 
-    mean = best.load()[0]
-    ste = best.load()[1]
+    mean = best.mean()
+    ste = best.stderr()
 
     if len(mean.shape) == 1:
         mean = np.reshape(mean, (-1, 1))
@@ -53,10 +53,11 @@ def lineplot(ax, mean, window=1, smoothing=0, stderr=None, color=None, label=Non
 
     mean = np.array(list(smoothingAverage(mean, smoothing)))
 
-    ax.plot(mean, linestyle=dashes, label=label, color=color, alpha=alphaMain, linewidth=2)
+    p = ax.plot(mean, linestyle=dashes, label=label, color=color, alpha=alphaMain, linewidth=2)
+    if color is None:
+        color = p[0].get_color()
+
     if stderr is not None:
         stderr = np.array(list(smoothingAverage(stderr, smoothing)))
         (low_ci, high_ci) = confidenceInterval(mean, stderr)
         ax.fill_between(range(mean.shape[0]), low_ci, high_ci, color=color, alpha=alpha * alphaMain)
-
-    ax.legend()

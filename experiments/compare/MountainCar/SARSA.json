@@ -1,0 +1,12 @@
+{
+    "agent": "SARSA",
+    "problem": "MountainCar",
+    "max_steps": 50000,
+    "metaParameters": {
+        "alpha": [0.2, 0.4, 0.8],
+        "epsilon": 0.1,
+        "tile-coder": ["mine", "tiles3"],
+        "tiles": [4, 8],
+        "tilings": [4, 16]
+    }
+}

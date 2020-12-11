@@ -1,6 +1,16 @@
-from typing import Dict
 import numpy as np
-from PyExpUtils.utils.random import argmax, choice
+from typing import Dict
+from numba import njit
+from utils.policies import buildEGreedyPolicy
+
+@njit(cache=True)
+def _update(w, x, a, xp, ap, r, gamma, alpha):
+    q_a = w[a].dot(x)
+    qp_ap = w[ap].dot(xp)
+
+    delta = r + gamma * qp_ap - q_a
+
+    w[a] = w[a] + alpha * delta * x
 
 class SARSA:
     def __init__(self, features: int, actions: int, params: Dict, seed: int):
@@ -17,20 +27,16 @@ class SARSA:
         # create initial weights
         self.w = np.zeros((actions, features))
 
-    def selectAction(self, x):
-        p = self.random.rand()
-        if p < self.epsilon:
-            return choice(np.arange(self.actions), self.random)
+        # use the policy utility class to keep track of policy probabilities,
+        # sample actions, and maintain rng state
+        self.policy = buildEGreedyPolicy(self.random, self.epsilon, lambda x: self.w.dot(x))
 
-        return argmax(self.w.dot(x))
+    def selectAction(self, x):
+        return self.policy.selectAction(x)
 
     def update(self, x, a, xp, r, gamma):
-        q_a = self.w[a].dot(x)
         ap = self.selectAction(xp)
-        qp_ap = self.w[ap].dot(xp)
 
-        g = r + gamma * qp_ap
-        delta = g - q_a
-
-        self.w[a] += self.alpha * delta * x
+        # defer the bulk of the update to a fast compiled function
+        _update(self.w, x, a, xp, ap, r, gamma, self.alpha)
         return ap

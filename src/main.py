@@ -1,4 +1,5 @@
 import numpy as np
+import time
 import sys
 import os
 sys.path.append(os.getcwd())
@@ -6,7 +7,7 @@ sys.path.append(os.getcwd())
 from RlGlue import RlGlue
 from src.experiment import ExperimentModel
 from src.problems.registry import getProblem
-from src.utils.Collector import Collector
+from PyExpUtils.utils.Collector import Collector
 from src.utils.rlglue import OneStepWrapper
 
 if len(sys.argv) < 3:
@@ -14,53 +15,59 @@ if len(sys.argv) < 3:
     print('python3 src/main.py <runs> <path/to/description.json> <idx>')
     exit(1)
 
-runs = int(sys.argv[1])
-exp = ExperimentModel.load(sys.argv[2])
-idx = int(sys.argv[3])
+exp = ExperimentModel.load(sys.argv[1])
+idx = int(sys.argv[2])
 
 max_steps = exp.max_steps
+run = exp.getRun(idx)
 
 collector = Collector()
-broke = False
-for run in range(runs):
-    # set random seeds accordingly
-    np.random.seed(run)
+# set random seeds accordingly
+np.random.seed(run)
 
-    inner_idx = exp.numPermutations() * run + idx
-    Problem = getProblem(exp.problem)
-    problem = Problem(exp, inner_idx)
+Problem = getProblem(exp.problem)
+problem = Problem(exp, idx)
 
-    agent = problem.getAgent()
-    env = problem.getEnvironment()
+agent = problem.getAgent()
+env = problem.getEnvironment()
 
-    wrapper = OneStepWrapper(agent, problem.getGamma(), problem.rep)
+wrapper = OneStepWrapper(agent, problem.getGamma(), problem.rep)
 
-    glue = RlGlue(wrapper, env)
+glue = RlGlue(wrapper, env)
 
-    # Run the experiment
-    rewards = []
-    for episode in range(exp.episodes):
+# Run the experiment
+glue.start()
+start_time = time.time()
+episode = 0
+
+for step in range(exp.max_steps):
+    _, _, _, t = glue.step()
+
+    if t:
+        episode += 1
+        glue.start()
+
+        # collect an array of rewards that is the length of the number of steps in episode
+        # effectively we count the whole episode as having received the same final reward
+        collector.concat('step_return', [glue.total_reward] * glue.num_steps)
+
+        # compute the average time-per-step in ms
+        avg_time = 1000 * (time.time() - start_time) / step
+        print(episode, step, glue.total_reward, f'{avg_time:.4}ms')
+
         glue.total_reward = 0
-        glue.runEpisode(max_steps)
+        glue.num_steps = 0
 
-        # if the weights diverge to nan, just quit. This run doesn't matter to me anyways now.
-        if np.isnan(np.sum(agent.w)):
-            collector.fillRest(np.nan, exp.episodes)
-            broke = True
-            break
-
-        collector.collect('return', glue.total_reward)
-
-    collector.reset()
-    if broke:
-        break
-
+collector.fillRest('step_return', exp.max_steps)
+collector.collect('time', time.time() - start_time)
+collector.collect('feature_utilization', np.count_nonzero(agent.w) / np.product(agent.w.shape))
 
 # import matplotlib.pyplot as plt
 # from src.utils.plotting import plot
 # fig, ax1 = plt.subplots(1)
 
-# return_data = collector.getStats('return')
+# collector.reset()
+# return_data = collector.getStats('step_return')
 # plot(ax1, return_data)
 # ax1.set_title('Return')
 
@@ -70,17 +77,14 @@ for run in range(runs):
 from PyExpUtils.results.backends.csv import saveResults
 from PyExpUtils.utils.arrays import downsample
 
-for key in collector.all_data:
-    data = collector.all_data[key]
-    for run, datum in enumerate(data):
-        inner_idx = exp.numPermutations() * run + idx
+for key in collector.run_data:
+    data = collector.run_data[key]
+    # heavily downsample the data to reduce storage costs
+    # we don't need all of the data-points for plotting anyways
+    # method='window' returns a window average
+    # method='subsample' returns evenly spaced samples from array
+    # num=1000 makes sure final array is of length 1000
+    # percent=0.1 makes sure final array is 10% of the original length (only one of `num` or `percent` can be specified)
+    data = downsample(data, num=500, method='window')
 
-        # heavily downsample the data to reduce storage costs
-        # we don't need all of the data-points for plotting anyways
-        # method='window' returns a window average
-        # method='subsample' returns evenly spaced samples from array
-        # num=1000 makes sure final array is of length 1000
-        # percent=0.1 makes sure final array is 10% of the original length (only one of `num` or `percent` can be specified)
-        datum = downsample(datum, num=500, method='window')
-
-        saveResults(exp, inner_idx, key, datum, precision=2)
+    saveResults(exp, idx, key, data, precision=2)
