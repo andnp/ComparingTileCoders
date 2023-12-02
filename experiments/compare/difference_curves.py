@@ -69,4 +69,4 @@ if __name__ == "__main__":
         generatePlot(axes, exp_paths)
 
         file_name = os.path.basename(__file__).replace('.py', '').replace('_', '-')
-        displayOrSave(f, should_save, save_path, domain.name, file_name, save_type, width=10, height=2 * (24/5))
+        displayOrSave(f, should_save, save_path, domain.name, file_name, save_type, width=5, height=(24/5))
